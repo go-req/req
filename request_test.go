@@ -1,13 +1,12 @@
 package req
 
 import (
-	"io/ioutil"
 	"testing"
 )
 
 func TestGet(t *testing.T) {
 	resp, err := Get("https://httpbin.org/get")
-	t.Log(ioutil.ReadAll(resp.Body))
+
 	if err != nil {
 		t.Error(err)
 	}
