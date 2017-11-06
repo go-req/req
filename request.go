@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 	"net/url"
 )
 
@@ -14,7 +15,14 @@ const version = "1.0"
 // Client is the default client to use for requests
 var Client = &http.Client{}
 
+// Headers is an alias to net/http's Header
+type Headers = http.Header
+
+// Params is an alias to net/url's Values
+type Params = url.Values
+
 // A Request represents an HTTP request to be sent.
+// See NewRequest to view the defaults for a Request
 type Request struct {
 	// The HTTP Method
 	Method string
@@ -22,17 +30,19 @@ type Request struct {
 	URL string
 
 	// Map of HTTP Headers to send with the request
-	Headers http.Header
+	Headers Headers
 	// Map of url params to modify the url
-	Params url.Values
+	Params Params
 
 	// Leave the body open, and don't automatically read the text.
 	Stream bool
-	// HTTP Timeout
-	Timeout int
+	// HTTP Timeout, defaults to 60 seconds
+	Timeout time.Duration
+	// Number of redirects to allow, defaults to 10.
+	NumRedirects int
 
-	// Specific Client to use, overrides the default go-req client
-	Client *http.Client
+	// Transport to use for the client.
+	Transport *http.Transport
 
 	// Body is the request's body, this takes precedence over Content
 	Body io.Reader
@@ -44,7 +54,8 @@ type Request struct {
 	JSON interface{}
 }
 
-// Do will execute the request
+// Do will execute the request.
+// Creates a copy of the client to avoid modifying it directly.
 func (req *Request) Do() (*Response, error) {
 	var body io.Reader
 
@@ -78,20 +89,30 @@ func (req *Request) Do() (*Response, error) {
 		return nil, err
 	}
 
-	var client *http.Client
+	client := &http.Client{}
+	*client = *Client
 
-	// If they passed a client, then override client to use.
-	if req.Client == nil {
-		client = Client
-	} else {
-		client = req.Client
+	if req.Transport != nil {
+		client.Transport = req.Transport
 	}
 
-	resp, err := client.Do(req)
+	client.Timeout = req.Timeout
+
+	// Stop redirects after NumRedirects
+	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
+		if len(via) >= req.NumRedirects {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+
+	resp, err := client.Do(r)
 
 	if err != nil {
-		return resp, err
+		return nil, err
 	}
+
+	return toResponse(req, resp)
 }
 
 // NewRequest will return a Request with the preferred defaults
@@ -99,8 +120,11 @@ func (req *Request) Do() (*Response, error) {
 func NewRequest() *Request {
 	return &Request{
 		Headers: http.Header{
+			"Accept":     []string{"*/*"},
 			"User-Agent": []string{"go-req/" + version},
 		},
+		NumRedirects: 10,
+		Timeout: 60 * time.Second,
 	}
 }
 
@@ -115,7 +139,7 @@ func New(method, url string, options ...func(*Request)) (*Response, error) {
 		fn(req)
 	}
 
-	return req.Do(req)
+	return req.Do()
 }
 
 // Get will send a GET request
@@ -141,14 +165,4 @@ func Patch(url string, options ...func(*Request)) (*Response, error) {
 // Delete will send a DELETE request
 func Delete(url string, options ...func(*Request)) (*Response, error) {
 	return New("DELETE", url, options...)
-}
-
-// Head will send a HEAD request
-func Head(url string, options ...func(*Request)) (*Response, error) {
-	return New("HEAD", url, options...)
-}
-
-// Options will send a OPTIONS request
-func Options(url string, options ...func(*Request)) (*Response, error) {
-	return New("OPTIONS", url, options...)
 }
