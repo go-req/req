@@ -1,5 +1,5 @@
 # req
-Easy and Minimal HTTP Requests for Go
+Simple and Easy HTTP Requests for Go
 
 [![GoDoc](https://godoc.org/github.com/go-req/req?status.svg)](https://godoc.org/github.com/go-req/req)
 [![Build Status](https://img.shields.io/travis/go-req/req.svg)](https://travis-ci.org/go-req/req)
