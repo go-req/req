@@ -80,3 +80,18 @@ func TestNew(t *testing.T) {
 		t.Errorf("Method Mismatch\nExpected: %s\nGot: %s", method, m["method"])
 	}
 }
+
+func TestToResponseFails(t *testing.T) {
+	// This closes the body
+	resp, err := Get("http://httpbin.org/get")
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Fails because body has been consumed
+	resp, err = toResponse(resp.Request, resp.Raw)
+	if err == nil {
+		t.Errorf("toResponse() = (%v, nil), want error", resp)
+	}
+}

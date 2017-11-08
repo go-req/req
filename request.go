@@ -15,8 +15,8 @@ const version = "1.0"
 // Client is the default client to use for requests
 var Client = &http.Client{}
 
-// Headers is an alias to net/http's Header
-type Headers = http.Header
+// Headers represents the key-value pairs in an HTTP header.
+type Headers map[string]string
 
 // Params is an alias to net/url's Values
 type Params = url.Values
@@ -84,18 +84,43 @@ func (req *Request) Do() (*Response, error) {
 		body = nil
 	}
 
-	r, err := http.NewRequest(req.Method, req.URL, body)
+	// Params
+	u, err := url.Parse(req.URL)
+	if err != nil {
+		return nil, err
+	}
+	if req.Params != nil{
+		v := u.Query()
+		for key, value := range req.Params {
+			for _, val := range value {
+				v.Add(key, val)
+			}
+		}
+
+		u.RawQuery = v.Encode()
+	}
+
+	r, err := http.NewRequest(req.Method, u.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
+	// Headers
+ 	headers := http.Header{}
+	for key, value := range req.Headers {
+		headers.Set(key, value)
+	}
+	r.Header = headers
+
 	client := &http.Client{}
 	*client = *Client
 
+	// Transport
 	if req.Transport != nil {
 		client.Transport = req.Transport
 	}
 
+	// Timeout
 	client.Timeout = req.Timeout
 
 	// Stop redirects after NumRedirects
@@ -119,9 +144,9 @@ func (req *Request) Do() (*Response, error) {
 // without executing it.
 func NewRequest() *Request {
 	return &Request{
-		Headers: http.Header{
-			"Accept":     []string{"*/*"},
-			"User-Agent": []string{"go-req/" + version},
+		Headers: Headers{
+			"Accept":     "*/*",
+			"User-Agent": "go-req/" + version,
 		},
 		NumRedirects: 10,
 		Timeout: 60 * time.Second,
